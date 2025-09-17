@@ -1,28 +1,30 @@
-// src/App.tsx (ejemplo con React y TypeScript)
+// src/App.tsx
 import { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
+import config from '../config/config';
 
-// Define la interfaz para los datos de los mensajes
+// Define las interfaces necesarias
 interface SocketMessage {
-  texto: string;
-  status: string;
+  message: string;
+  status: boolean;
 }
-var estatus: string = "false";
 
-const SERVER_URL = 'http://localhost:3000';
+interface Tick{
+  tick: boolean;
+}
 
 const Home = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [inputValue, setInputValue] = useState<string>('');
-  const [Text, setText] = useState<string>('');
+  const [messages, setMessages] = useState<string>();
+  const [status, setStatus] = useState<boolean | null>(null); // Inicializa como null para evitar errores
 
   useEffect(() => {
-    const newSocket: Socket = io(SERVER_URL);
+    const newSocket: Socket = io(config.API_URL);
 
-    newSocket.on('mensajeRecibido', (data: SocketMessage) => {
-      setMessages(prev => [...prev, `Socket: ${data.texto}`]);
-      setText(data.status)
+    // Escucha el evento de respuesta del servidor 'chat:receiveMessage'
+    newSocket.on('chat:receiveMessage', (data: SocketMessage) => {
+      setMessages(data.message);
+      setStatus(data.status);
     });
 
     setSocket(newSocket);
@@ -33,37 +35,19 @@ const Home = () => {
   }, []);
 
   const handleSendMessage = () => {
-    if ( Text == "false"){
-      estatus = "true"
-    }else{
-      estatus = "false"
-    }
-    if (socket && inputValue) {
-      socket.emit('enviarMensaje', { texto: inputValue , status: estatus} as SocketMessage);
-      setInputValue('');
+    if (socket) { // No necesitas el `inputValue` aquí si el servidor solo regresa un mensaje fijo
+      const tickData: Tick = { tick: true };
+      socket.emit('chat:sendMessage', tickData);
     }
   };
 
-  const handleHttpTest = async () => {
-    try {
-      const response = await fetch(`${SERVER_URL}/saludo`);
-      const data = await response.json();
-      setMessages(prev => [...prev, `HTTP: ${data.mensaje}`]);
-    } catch (error) {
-      console.error('Error en la petición HTTP:', error);
-    }
-  };
 
   return (
     <div>
-      <h1>Vite + React + TypeScript</h1>
-      <div>
-        {messages.map((msg, index) => <p key={index}>{msg}</p>)}
-      </div>
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} />
+      <h1>Comunication Socket.io</h1>
+      <div>{messages}</div>
       <button onClick={handleSendMessage}>Enviar por Socket</button>
-      <button onClick={handleHttpTest}>Petición HTTP</button>
-      <div>{Text}</div>
+      <div>Estado del Servidor: {status !== null ? String(status) : 'N/A'}</div>
     </div>
   );
 };
