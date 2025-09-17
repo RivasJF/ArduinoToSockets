@@ -1,69 +1,88 @@
-// src/App.tsx (ejemplo con React y TypeScript)
+// src/App.tsx
 import { useState, useEffect } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Define la interfaz para los datos de los mensajes
-interface SocketMessage {
-  texto: string;
-  status: string;
+// Define las interfaces para cada tipo de dato de socket
+interface ChatMessage {
+  user: string;
+  message: string;
 }
-var estatus: string = "false";
+
+interface Notification {
+  title: string;
+  content: string;
+}
 
 const SERVER_URL = 'http://localhost:3000';
 
 const Home = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState<string>('');
-  const [Text, setText] = useState<string>('');
 
   useEffect(() => {
+    // Se establece una única conexión con el servidor
     const newSocket: Socket = io(SERVER_URL);
 
-    newSocket.on('mensajeRecibido', (data: SocketMessage) => {
-      setMessages(prev => [...prev, `Socket: ${data.texto}`]);
-      setText(data.status)
+    // Escucha eventos del chat
+    newSocket.on('chat:receiveMessage', (data: ChatMessage) => {
+      setChatMessages(prev => [...prev, data]);
+    });
+
+    // Escucha eventos de notificaciones
+    newSocket.on('notifications:receive', (data: Notification) => {
+      alert(`Nueva Notificación: ${data.title} - ${data.content}`);
     });
 
     setSocket(newSocket);
 
+    // Función de limpieza para desconectar el socket al desmontar el componente
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, []); // El array vacío asegura que se ejecute solo una vez al montar
 
-  const handleSendMessage = () => {
-    if ( Text == "false"){
-      estatus = "true"
-    }else{
-      estatus = "false"
-    }
+  const handleSendChat = () => {
     if (socket && inputValue) {
-      socket.emit('enviarMensaje', { texto: inputValue , status: estatus} as SocketMessage);
+      const messageData: ChatMessage = {
+        user: 'TuUsuario', // Puedes hacer que el usuario sea dinámico
+        message: inputValue
+      };
+      // Emite el evento de chat
+      socket.emit('chat:sendMessage', messageData);
       setInputValue('');
     }
   };
 
-  const handleHttpTest = async () => {
-    try {
-      const response = await fetch(`${SERVER_URL}/saludo`);
-      const data = await response.json();
-      setMessages(prev => [...prev, `HTTP: ${data.mensaje}`]);
-    } catch (error) {
-      console.error('Error en la petición HTTP:', error);
+  const handleSendNotification = () => {
+    if (socket) {
+      const notificationData: Notification = {
+        title: 'Alerta Importante',
+        content: `Notificación enviada a las ${new Date().toLocaleTimeString()}`
+      };
+      // Emite el evento de notificación
+      socket.emit('notifications:send', notificationData);
     }
   };
 
   return (
     <div>
-      <h1>Vite + React + TypeScript</h1>
-      <div>
-        {messages.map((msg, index) => <p key={index}>{msg}</p>)}
+      <h2>Chat en Tiempo Real</h2>
+      <div style={{ border: '1px solid #ccc', padding: '10px', height: '200px', overflowY: 'scroll' }}>
+        {chatMessages.map((msg, index) => (
+          <p key={index}><strong>{msg.user}:</strong> {msg.message}</p>
+        ))}
       </div>
-      <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} />
-      <button onClick={handleSendMessage}>Enviar por Socket</button>
-      <button onClick={handleHttpTest}>Petición HTTP</button>
-      <div>{Text}</div>
+      <input
+        type="text"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        placeholder="Escribe un mensaje..."
+      />
+      <button onClick={handleSendChat}>Enviar Mensaje</button>
+
+      <h2>Enviar Notificación</h2>
+      <button onClick={handleSendNotification}>Enviar Notificación a Todos</button>
     </div>
   );
 };
